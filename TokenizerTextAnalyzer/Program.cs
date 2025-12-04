@@ -1,18 +1,19 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+using System.Linq;
 using TokenizerTextAnalyzer.Models;
 using TokenizerTextAnalyzer.Parsers;
 using TokenizerTextAnalyzer.Services;
 using TokenizerTextAnalyzer.Export;
-using static System.Text.CodePagesEncodingProvider;
+
 class Program
 {
     static void Main()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-
         Console.OutputEncoding = Encoding.UTF8;
+
         var selector = new TextFileSelector();
         var files = selector.GetAllTxtFiles();
 
@@ -51,86 +52,96 @@ class Program
             ITextParser parser = parserChoice == 1 ? new CharByCharParser() : new RegexParser();
             Text text = parser.Parse(rawText);
 
-            Console.WriteLine("\nВыберите операцию:");
-            Console.WriteLine("1. Сортировать предложения по количеству слов");
-            Console.WriteLine("2. Сортировать предложения по длине");
-            Console.WriteLine("3. Найти слова заданной длины в вопросительных предложениях");
-            Console.WriteLine("4. Удалить слова заданной длины, начинающиеся с согласной");
-            Console.WriteLine("5. Заменить слова заданной длины в предложении на подстроку");
-            Console.WriteLine("6. Удалить стоп-слова");
-            Console.WriteLine("7. Экспортировать текст в XML");
-            Console.WriteLine("0. Вернуться к выбору файла");
-
-            int actionChoice = GetUserChoice(7, allowZero: true);
-            if (actionChoice == 0) continue;
-
             var analyzer = new TextAnalyzer();
             var transformer = new SentenceTransformer();
             var stopFilter = new StopWordsFilter();
             var exporter = new XmlExporter();
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
-            switch (actionChoice)
+            while (true)
             {
-                case 1:
-                    var byWords = analyzer.SortByWordCount(text);
-                    Console.WriteLine("\nПредложения по количеству слов:");
-                    foreach (var s in byWords) Console.WriteLine(s);
-                    break;
+                Console.WriteLine("\nВыберите операцию:");
+                Console.WriteLine("1. Сортировать предложения по количеству слов");
+                Console.WriteLine("2. Сортировать предложения по длине");
+                Console.WriteLine("3. Найти слова заданной длины в вопросительных предложениях");
+                Console.WriteLine("4. Удалить слова заданной длины, начинающиеся с согласной");
+                Console.WriteLine("5. Заменить слова заданной длины в предложении на подстроку");
+                Console.WriteLine("6. Удалить стоп-слова");
+                Console.WriteLine("7. Экспортировать текст в XML");
+                Console.WriteLine("8. Построить конкорданс");
+                Console.WriteLine("0. Выбрать другой файл");
 
-                case 2:
-                    var byLen = analyzer.SortBySentenceLength(text);
-                    Console.WriteLine("\nПредложения по длине:");
-                    foreach (var s in byLen) Console.WriteLine(s);
-                    break;
+                int actionChoice = GetUserChoice(8, allowZero: true);
+                if (actionChoice == 0) break;
 
-                case 3:
-                    Console.Write("Введите длину слова: ");
-                    int lenQ = ReadIntOrZero();
-                    var found = analyzer.FindUniqueWordsByLength(text, lenQ, true);
+                switch (actionChoice)
+                {
+                    case 1:
+                        var byWords = analyzer.SortByWordCount(text);
+                        Console.WriteLine("\nПредложения по количеству слов:");
+                        foreach (var s in byWords) Console.WriteLine(s);
+                        break;
 
-                    Console.WriteLine("\nНайденные слова:");
-                    foreach (var w in found) Console.WriteLine(w);
-                    break;
+                    case 2:
+                        var byLen = analyzer.SortBySentenceLength(text);
+                        Console.WriteLine("\nПредложения по длине:");
+                        foreach (var s in byLen) Console.WriteLine(s);
+                        break;
 
-                case 4:
-                    Console.Write("Введите длину слова для удаления: ");
-                    int lenDel = ReadIntOrZero();
-                    var cleaned = analyzer.RemoveWordsByLengthStartingWithConsonant(text, lenDel);
-                    Console.WriteLine("\nТекст после удаления слов:");
-                    foreach (var s in cleaned.Sentences) Console.WriteLine(s);
-                    break;
+                    case 3:
+                        Console.Write("Введите длину слова: ");
+                        int lenQ = ReadIntOrZero();
+                        var found = analyzer.FindUniqueWordsByLength(text, lenQ, true);
+                        Console.WriteLine("\nНайденные слова:");
+                        foreach (var w in found) Console.WriteLine(w);
+                        break;
 
-                case 5:
-                    Console.Write("Введите индекс предложения (начиная с 1): ");
-                    int index = ReadIntOrDefault(1) - 1;
-                    Console.Write("Введите длину слова для замены: ");
-                    int lenRep = ReadIntOrZero();
-                    Console.Write("Введите подстроку для замены: ");
-                    string replacement = Console.ReadLine() ?? "";
-                    var replaced = analyzer.ReplaceWordsInSentence(text, index, lenRep, replacement);
-                    Console.WriteLine("\nТекст после замены:");
-                    foreach (var s in replaced.Sentences) Console.WriteLine(s);
-                    break;
+                    case 4:
+                        Console.Write("Введите длину слова для удаления: ");
+                        int lenDel = ReadIntOrZero();
+                        text = analyzer.RemoveWordsByLengthStartingWithConsonant(text, lenDel);
+                        Console.WriteLine("\nТекст после удаления слов:");
+                        foreach (var s in text.Sentences) Console.WriteLine(s);
+                        break;
 
-                case 6:
-                    stopFilter.LoadStopWords(
-                        Path.Combine(baseDir, "Resources", "stopwords_en.txt"),
-                        Path.Combine(baseDir, "Resources", "stopwords_ru.txt")
-                    );
-                    var filtered = stopFilter.RemoveStopWords(text);
-                    Console.WriteLine("\nТекст после удаления стоп-слов:");
-                    foreach (var s in filtered.Sentences) Console.WriteLine(s);
-                    break;
+                    case 5:
+                        Console.Write("Введите индекс предложения (начиная с 1): ");
+                        int index = ReadIntOrDefault(1) - 1;
+                        Console.Write("Введите длину слова для замены: ");
+                        int lenRep = ReadIntOrZero();
+                        Console.Write("Введите подстроку для замены: ");
+                        string replacement = Console.ReadLine() ?? "";
+                        text = analyzer.ReplaceWordsInSentence(text, index, lenRep, replacement);
+                        Console.WriteLine("\nТекст после замены:");
+                        foreach (var s in text.Sentences) Console.WriteLine(s);
+                        break;
 
-                case 7:
-                    string xmlPath = Path.Combine(baseDir, "Resources", "exported.xml");
+                    case 6:
+                        stopFilter.LoadStopWords(
+                            Path.Combine(baseDir, "Resources", "stopwords_en.txt"),
+                            Path.Combine(baseDir, "Resources", "stopwords_ru.txt")
+                        );
+                        text = stopFilter.RemoveStopWords(text);
+                        Console.WriteLine("\nТекст после удаления стоп-слов:");
+                        foreach (var s in text.Sentences) Console.WriteLine(s);
+                        break;
 
-                    Directory.CreateDirectory(Path.GetDirectoryName(xmlPath)!);
+                    case 7:
+                        string xmlPath = Path.Combine(baseDir, "Resources", "exported.xml");
+                        Directory.CreateDirectory(Path.GetDirectoryName(xmlPath)!);
+                        exporter.SaveToFile(text, xmlPath);
+                        Console.WriteLine($"\nТекст экспортирован в XML: {xmlPath}");
+                        break;
 
-                    exporter.SaveToFile(text, xmlPath);
-                    Console.WriteLine($"\nТекст экспортирован в XML: {xmlPath}");
-                    break;
+                    case 8:
+                        var concordance = analyzer.BuildConcordance(text);
+                        Console.WriteLine("\nКонкорданс:");
+                        foreach (var entry in concordance.OrderBy(e => e.Key))
+                        {
+                            Console.WriteLine($"{entry.Key,-20}{entry.Value}");
+                        }
+                        break;
+                }
             }
         }
 

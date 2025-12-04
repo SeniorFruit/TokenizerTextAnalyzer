@@ -9,6 +9,13 @@ namespace TokenizerTextAnalyzer.Services
     {
         private readonly string _searchRoot;
 
+        
+        private readonly HashSet<string> _excludedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "stopwords_en.txt",
+            "stopwords_ru.txt"
+        };
+
         public TextFileSelector()
         {
             _searchRoot = AppDomain.CurrentDomain.BaseDirectory;
@@ -18,7 +25,7 @@ namespace TokenizerTextAnalyzer.Services
         {
             return Directory.GetFiles(_searchRoot, "*.txt", SearchOption.AllDirectories)
                             .Select(Path.GetFileName)
-                            .Where(f => !string.IsNullOrWhiteSpace(f))
+                            .Where(f => !string.IsNullOrWhiteSpace(f) && !_excludedFiles.Contains(f))
                             .Distinct(StringComparer.OrdinalIgnoreCase)
                             .ToList();
         }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using TokenizerTextAnalyzer.Models;
 
 namespace TokenizerTextAnalyzer.Services
@@ -34,8 +35,9 @@ namespace TokenizerTextAnalyzer.Services
 
                 foreach (var word in sentence.Words)
                 {
-                    if (word.Length == length)
-                        result.Add(word.Text);
+                    var cleaned = CleanWord(word.Text);
+                    if (cleaned.Length == length)
+                        result.Add(cleaned);
                 }
             }
 
@@ -55,9 +57,13 @@ namespace TokenizerTextAnalyzer.Services
                 {
                     if (token is Word w)
                     {
-                        if (w.Length == length && IsConsonant(w.FirstChar))
+                        var cleaned = CleanWord(w.Text);
+                        var first = FirstLetter(cleaned);
+
+                        if (cleaned.Length == length && first.HasValue && IsConsonant(first.Value))
                         {
-                            continue; // удаляем
+                            // пропускаем (удаляем)
+                            continue;
                         }
                         newSentence.AddToken(w);
                     }
@@ -89,10 +95,16 @@ namespace TokenizerTextAnalyzer.Services
 
                 foreach (var token in sentence.Tokens)
                 {
-                    if (i == sentenceIndex && token is Word w && w.Length == targetLength)
-                        newSentence.AddToken(new Word(replacement));
-                    else
-                        newSentence.AddToken(token);
+                    if (i == sentenceIndex && token is Word w)
+                    {
+                        var cleaned = CleanWord(w.Text);
+                        if (cleaned.Length == targetLength)
+                        {
+                            newSentence.AddToken(new Word(replacement));
+                            continue;
+                        }
+                    }
+                    newSentence.AddToken(token);
                 }
 
                 newText.AddSentence(newSentence);
@@ -101,7 +113,7 @@ namespace TokenizerTextAnalyzer.Services
             return newText;
         }
 
-        // Проверка согласной (поддержка русских и английских букв, без учёта регистра)
+        // Проверка согласной
         private static bool IsConsonant(char c)
         {
             if (!char.IsLetter(c)) return false;
@@ -116,6 +128,59 @@ namespace TokenizerTextAnalyzer.Services
                 return !englishVowels.Contains(c);
             else
                 return !russianVowels.Contains(c);
+        }
+
+        // Возвращает слово без ведущей/замыкающей пунктуации и служебных символов
+        private static string CleanWord(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+            // Оставляем только буквы/цифры и внутренние дефисы/апострофы
+            // Убираем ведущие/замыкающие не-слова
+            var trimmed = s.Trim();
+            // Удалим обрамляющие кавычки/тире/скобки
+            trimmed = Regex.Replace(trimmed, @"^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$", "");
+            // Если внутри остался мусор, можно дополнительно чистить, но обычно этого достаточно
+            return trimmed;
+        }
+
+        // Первая буква в строке (если есть)
+        private static char? FirstLetter(string s)
+        {
+            foreach (var ch in s)
+            {
+                if (char.IsLetter(ch)) return ch;
+            }
+            return null;
+        }
+
+        public Dictionary<string, WordInfo> BuildConcordance(Text text)
+        {
+            var concordance = new Dictionary<string, WordInfo>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < text.Sentences.Count; i++)
+            {
+                var sentence = text.Sentences[i];
+                int lineNumber = i + 1;
+
+                foreach (var word in sentence.Words)
+                {
+                    var cleaned = CleanWord(word.Text);
+                    if (cleaned.Length == 0) continue;
+
+                    string key = cleaned.ToLowerInvariant();
+
+                    if (!concordance.TryGetValue(key, out var info))
+                    {
+                        info = new WordInfo();
+                        concordance[key] = info;
+                    }
+
+                    info.Count++;
+                    info.LineNumbers.Add(lineNumber);
+                }
+            }
+
+            return concordance;
         }
     }
 }

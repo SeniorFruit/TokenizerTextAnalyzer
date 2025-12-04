@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using TokenizerTextAnalyzer.Models;
 
 namespace TokenizerTextAnalyzer.Services
@@ -10,14 +11,12 @@ namespace TokenizerTextAnalyzer.Services
     {
         private readonly HashSet<string> _stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Загрузка стоп-слов из файлов (английские и русские)
         public void LoadStopWords(string englishPath, string russianPath)
         {
             LoadFromFile(englishPath);
             LoadFromFile(russianPath);
         }
 
-        // Удалить стоп-слова из текста (на английском и русском)
         public Text RemoveStopWords(Text text)
         {
             var newText = new Text();
@@ -30,13 +29,18 @@ namespace TokenizerTextAnalyzer.Services
                 {
                     if (token is Word w)
                     {
-                        if (_stopWords.Contains(Normalize(w.Text)))
+                        var cleaned = CleanWord(w.Text);
+                        var normalized = Normalize(cleaned);
+
+                        if (_stopWords.Contains(normalized))
                         {
-                            // пропускаем это слово
+                            // стоп-слово — пропускаем
                             continue;
                         }
 
-                        newSentence.AddToken(w);
+                        // добавляем очищенное слово вместо исходного
+                        if (!string.IsNullOrEmpty(cleaned))
+                            newSentence.AddToken(new Word(cleaned));
                     }
                     else
                     {
@@ -50,6 +54,7 @@ namespace TokenizerTextAnalyzer.Services
 
             return newText;
         }
+
 
         private void LoadFromFile(string path)
         {
@@ -65,7 +70,15 @@ namespace TokenizerTextAnalyzer.Services
             }
         }
 
-        // Нормализация слова: нижний регистр, обрезка пробелов
         private static string Normalize(string s) => s.Trim().ToLowerInvariant();
+
+        private static string CleanWord(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+            var trimmed = s.Trim();
+            // убираем ведущую и замыкающую пунктуацию
+            return System.Text.RegularExpressions.Regex.Replace(trimmed, @"^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$", "");
+        }
+
     }
 }
